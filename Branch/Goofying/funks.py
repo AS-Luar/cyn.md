@@ -1,0 +1,2 @@
+def amog():
+    print("amogus")

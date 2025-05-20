@@ -1,0 +1,585 @@
+# SPEECH UNDERSTANDING - SOLUTION
+
+'''
+This is a complete solution for the speech understanding exercise.
+It implements intent recognition, entity extraction, context management,
+and dialog generation for a voice assistant.
+'''
+
+import re
+import json
+import time
+import os
+import random
+
+class IntentRecognizer:
+    """A class for recognizing user intents from speech text using regex patterns."""
+    
+    def __init__(self):
+        """Initialize the intent recognizer with predefined patterns."""
+        # Initialize intent patterns
+        self.intent_patterns = {
+            "greeting": [
+                r"(hello|hi|hey|greetings)( there| assistant| voice assistant)?",
+                r"good (morning|afternoon|evening)"
+            ],
+            "farewell": [
+                r"(goodbye|bye|see you( later)?)",
+                r"(exit|quit|stop)( assistant| program)?"
+            ],
+            "weather_inquiry": [
+                r"(what|how)('s| is) (the )?weather( like)?( in (?P<location>[\w\s]+))?",
+                r"(weather|forecast)( in| for) (?P<location>[\w\s]+)",
+                r"is it (going to|gonna) (rain|snow|be sunny)( in (?P<location>[\w\s]+))?"
+            ],
+            "time_inquiry": [
+                r"what('s| is) (the )?time( now)?",
+                r"(tell|give) me the (current |)time",
+                r"what time is it"
+            ],
+            "date_inquiry": [
+                r"what('s| is) (the )?date( today)?",
+                r"what day is (it|today)",
+                r"(tell|give) me the (current |)date"
+            ],
+            "device_control": [
+                r"(turn|switch) (?P<action>on|off) (the )?(?P<device>[\w\s]+)( please)?",
+                r"(dim|brighten) (the )?(?P<device>[\w\s]+)( please)?"
+            ],
+            "timer_set": [
+                r"(set|start) a timer for (?P<duration>[\w\s]+)( please)?",
+                r"timer for (?P<duration>[\w\s]+)( please)?"
+            ],
+            "general_question": [
+                r"(who|what|where|when|why|how) (is|are|was|were|do|does) [\w\s]+",
+                r"(can|could) you (tell|explain) [\w\s]+"
+            ]
+        }
+    
+    def detect_intent(self, text):
+        """
+        Detect the intent from the given text.
+        
+        Args:
+            text: The text to analyze
+            
+        Returns:
+            A tuple of (intent, entities) where entities is a dictionary
+        """
+        # Convert text to lowercase for case-insensitive matching
+        text = text.lower()
+        
+        # Check each intent and its patterns
+        for intent, patterns in self.intent_patterns.items():
+            for pattern in patterns:
+                match = re.search(pattern, text)
+                if match:
+                    # Extract entities from the match
+                    entities = self._extract_entities(intent, match, text)
+                    return intent, entities
+        
+        # No match found, return unknown intent
+        return "unknown_intent", {}
+    
+    def _extract_entities(self, intent, match, original_text):
+        """
+        Extract entities based on the matched pattern and intent.
+        
+        Args:
+            intent: The detected intent
+            match: The regex match object
+            original_text: The original text input
+            
+        Returns:
+            A dictionary of extracted entities
+        """
+        entities = {}
+        
+        # Extract named groups from the regex match
+        for group_name in match.groupdict():
+            entities[group_name] = match.group(group_name)
+        
+        # Additional processing for specific intents
+        if intent == "weather_inquiry" and "location" not in entities:
+            # Try to find location after "in" or "for"
+            location_match = re.search(r"(in|for) (?P<location>[\w\s]+)$", original_text.lower())
+            if location_match:
+                entities["location"] = location_match.group("location").strip()
+        
+        elif intent == "timer_set" and "duration" in entities:
+            # Convert duration text to seconds
+            duration_text = entities["duration"]
+            entities["seconds"] = self._parse_duration(duration_text)
+            
+        return entities
+    
+    def _parse_duration(self, duration_text):
+        """
+        Parse a duration string into seconds.
+        
+        Args:
+            duration_text: Text like "5 minutes", "1 hour and 30 seconds", etc.
+            
+        Returns:
+            Duration in seconds or None if parsing fails
+        """
+        total_seconds = 0
+        
+        # Try to extract hours
+        hour_match = re.search(r"(\d+)(\s+)?(hour|hr)", duration_text)
+        if hour_match:
+            hours = int(hour_match.group(1))
+            total_seconds += hours * 3600
+        
+        # Try to extract minutes
+        minute_match = re.search(r"(\d+)(\s+)?(minute|min)", duration_text)
+        if minute_match:
+            minutes = int(minute_match.group(1))
+            total_seconds += minutes * 60
+        
+        # Try to extract seconds
+        second_match = re.search(r"(\d+)(\s+)?(second|sec)", duration_text)
+        if second_match:
+            seconds = int(second_match.group(1))
+            total_seconds += seconds
+        
+        # If nothing was matched but there's a number, assume it's seconds
+        if total_seconds == 0:
+            number_match = re.search(r"(\d+)", duration_text)
+            if number_match:
+                total_seconds = int(number_match.group(1))
+        
+        return total_seconds if total_seconds > 0 else None
+
+
+class KeywordIntentRecognizer:
+    """A class for recognizing intents based on keywords and phrases."""
+    
+    def __init__(self):
+        """Initialize with intent keywords."""
+        self.intent_keywords = {
+            "greeting": ["hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening"],
+            "farewell": ["goodbye", "bye", "see you", "exit", "quit", "stop"],
+            "weather_inquiry": ["weather", "forecast", "temperature", "sunny", "rainy", "cloudy"],
+            "time_inquiry": ["time", "clock", "hour"],
+            "date_inquiry": ["date", "day", "today", "calendar"],
+            "device_control": ["turn on", "turn off", "switch on", "switch off", "dim", "brighten"],
+            "timer_set": ["timer", "set timer", "alarm", "reminder"],
+            "general_question": ["who", "what", "where", "when", "why", "how"]
+        }
+    
+    def detect_intent(self, text):
+        """
+        Detect intent based on keyword matching.
+        
+        Args:
+            text: The text to analyze
+            
+        Returns:
+            The most likely intent
+        """
+        text = text.lower()
+        
+        # Count keyword matches for each intent
+        matches = {intent: 0 for intent in self.intent_keywords}
+        
+        for intent, keywords in self.intent_keywords.items():
+            for keyword in keywords:
+                if keyword in text:
+                    matches[intent] += 1
+        
+        # Find intent with most matches
+        max_matches = 0
+        best_intent = "unknown_intent"
+        
+        for intent, count in matches.items():
+            if count > max_matches:
+                max_matches = count
+                best_intent = intent
+        
+        # Return unknown if no keywords matched
+        if max_matches == 0:
+            return "unknown_intent", {}
+        
+        # Extract basic entities (very simplified)
+        entities = self._extract_basic_entities(text, best_intent)
+        
+        return best_intent, entities
+    
+    def _extract_basic_entities(self, text, intent):
+        """
+        Extract very basic entities without regexes.
+        This is a simplified approach and won't work for all cases.
+        
+        Args:
+            text: The input text
+            intent: The detected intent
+            
+        Returns:
+            A dictionary of extracted entities
+        """
+        entities = {}
+        
+        # Simple location extraction for weather queries
+        if intent == "weather_inquiry" and " in " in text:
+            location = text.split(" in ", 1)[1].strip()
+            entities["location"] = location
+        
+        # Simple device extraction for device control
+        if intent == "device_control":
+            if "turn on" in text:
+                device = text.split("turn on", 1)[1].strip()
+                entities["action"] = "on"
+                entities["device"] = device
+            elif "turn off" in text:
+                device = text.split("turn off", 1)[1].strip()
+                entities["action"] = "off"
+                entities["device"] = device
+        
+        return entities
+
+
+class ContextManager:
+    """A class for managing conversational context."""
+    
+    def __init__(self):
+        """Initialize an empty context."""
+        self.context = {}
+        self.last_intent = None
+        self.session_start = time.time()
+        self.session_timeout = 300  # 5 minutes
+    
+    def update_context(self, intent, entities):
+        """
+        Update the context with new information.
+        
+        Args:
+            intent: The detected intent
+            entities: Dictionary of entities extracted from the utterance
+        """
+        # Reset if session has timed out
+        if time.time() - self.session_start > self.session_timeout:
+            self.reset_context()
+        
+        # Update session timestamp
+        self.session_start = time.time()
+        
+        # Save the latest intent
+        self.last_intent = intent
+        
+        # Update context with entities
+        if entities:
+            self.context.update(entities)
+    
+    def get_context_value(self, key, default=None):
+        """
+        Get a value from the context.
+        
+        Args:
+            key: The context key to retrieve
+            default: Default value if key is not in context
+            
+        Returns:
+            The value for the key or the default
+        """
+        return self.context.get(key, default)
+    
+    def reset_context(self):
+        """Reset the conversation context."""
+        self.context = {}
+        self.last_intent = None
+        self.session_start = time.time()
+    
+    def get_state(self):
+        """
+        Get the current context state.
+        
+        Returns:
+            Dictionary with context information
+        """
+        return {
+            "context": self.context,
+            "last_intent": self.last_intent,
+            "session_age": time.time() - self.session_start
+        }
+
+
+class DialogManager:
+    """A class for managing dialog flow and responses."""
+    
+    def __init__(self):
+        """Initialize the dialog manager with both recognizers."""
+        self.regex_recognizer = IntentRecognizer()
+        self.keyword_recognizer = KeywordIntentRecognizer()
+        self.context_manager = ContextManager()
+    
+    def process_input(self, text):
+        """
+        Process user input and generate a response.
+        
+        Args:
+            text: The user's input text
+            
+        Returns:
+            A tuple of (intent, entities, response)
+        """
+        # Try regex first
+        intent, entities = self.regex_recognizer.detect_intent(text)
+        
+        # If unknown, try keyword matching as fallback
+        if intent == "unknown_intent":
+            intent, entities = self.keyword_recognizer.detect_intent(text)
+        
+        # Update context
+        self.context_manager.update_context(intent, entities)
+        
+        # Generate response
+        response = self.generate_response(intent, entities)
+        
+        return intent, entities, response
+    
+    def generate_response(self, intent, entities):
+        """
+        Generate a response based on intent and entities.
+        
+        Args:
+            intent: The detected intent
+            entities: Dictionary of entities
+            
+        Returns:
+            A response string
+        """
+        if intent == "greeting":
+            greetings = [
+                "Hello! How can I help you?",
+                "Hi there! What can I do for you?",
+                "Hey! How can I assist you today?",
+                "Greetings! What do you need?"
+            ]
+            return random.choice(greetings)
+        
+        elif intent == "farewell":
+            farewells = [
+                "Goodbye! Have a great day!",
+                "See you later!",
+                "Bye for now!",
+                "Until next time!"
+            ]
+            return random.choice(farewells)
+        
+        elif intent == "weather_inquiry":
+            location = entities.get("location") or self.context_manager.get_context_value("location", "your location")
+            # In a real application, you would call a weather API here
+            weather_conditions = ["sunny", "cloudy", "rainy", "snowy", "windy", "clear"]
+            temperatures = range(50, 85)
+            condition = random.choice(weather_conditions)
+            temperature = random.choice(temperatures)
+            return f"The weather in {location} is currently {condition} with a temperature of {temperature}°F."
+        
+        elif intent == "time_inquiry":
+            current_time = time.strftime("%I:%M %p")
+            return f"The current time is {current_time}."
+        
+        elif intent == "date_inquiry":
+            current_date = time.strftime("%A, %B %d, %Y")
+            return f"Today is {current_date}."
+        
+        elif intent == "device_control":
+            device = entities.get("device", "that device")
+            action = entities.get("action", "unknown action")
+            return f"I'll {action} {device} for you."
+        
+        elif intent == "timer_set":
+            duration_str = entities.get("duration", "some time")
+            seconds = entities.get("seconds")
+            if seconds:
+                minutes, seconds = divmod(seconds, 60)
+                hours, minutes = divmod(minutes, 60)
+                time_parts = []
+                if hours:
+                    time_parts.append(f"{hours} hour{'s' if hours > 1 else ''}")
+                if minutes:
+                    time_parts.append(f"{minutes} minute{'s' if minutes > 1 else ''}")
+                if seconds:
+                    time_parts.append(f"{seconds} second{'s' if seconds > 1 else ''}")
+                    
+                time_str = " and ".join(time_parts) if time_parts else duration_str
+                return f"Timer set for {time_str}."
+            else:
+                return f"I couldn't understand the duration '{duration_str}'. Please try again with a clear time format like '5 minutes'."
+        
+        elif intent == "general_question":
+            return "That's an interesting question. I don't have the answer right now."
+        
+        else:  # unknown_intent
+            return "I'm not sure what you mean. Could you phrase that differently?"
+
+
+def simulate_speech_recognition():
+    """
+    Simulate speech recognition for testing without microphone.
+    This function allows input from the terminal instead of using Vosk.
+    """
+    dialog_manager = DialogManager()
+    
+    print("\n=== Speech Understanding Test ===")
+    print("Type your queries (or 'exit' to quit)")
+    
+    while True:
+        # Get user input
+        user_input = input("\nYou: ")
+        if user_input.lower() == "exit":
+            print("Exiting...")
+            break
+        
+        # Process input
+        intent, entities, response = dialog_manager.process_input(user_input)
+        
+        # Show debug info
+        print(f"[DEBUG] Intent: {intent}")
+        print(f"[DEBUG] Entities: {entities}")
+        
+        # Show response
+        print(f"Assistant: {response}")
+
+
+def main():
+    """Main entry point for the application."""
+    try:
+        # For testing without Vosk, use the simulation function
+        simulate_speech_recognition()
+        
+        # In a real application, you would integrate with Vosk here
+        # from a previous module's implementation
+        
+    except KeyboardInterrupt:
+        print("\nProgram interrupted by user")
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+if __name__ == "__main__":
+    main()
+
+'''
+Expected output:
+
+=== Speech Understanding Test ===
+Type your queries (or 'exit' to quit)
+
+You: Hello
+[DEBUG] Intent: greeting
+[DEBUG] Entities: {}
+Assistant: Hi there! What can I do for you?
+
+You: What's the weather like in Boston
+[DEBUG] Intent: weather_inquiry
+[DEBUG] Entities: {'location': 'Boston'}
+Assistant: The weather in Boston is currently sunny with a temperature of 72°F.
+
+You: What time is it
+[DEBUG] Intent: time_inquiry
+[DEBUG] Entities: {}
+Assistant: The current time is 03:45 PM.
+
+You: Set a timer for 10 minutes
+[DEBUG] Intent: timer_set
+[DEBUG] Entities: {'duration': '10 minutes', 'seconds': 600}
+Assistant: Timer set for 10 minutes.
+
+You: Turn on the living room lights
+[DEBUG] Intent: device_control
+[DEBUG] Entities: {'action': 'on', 'device': 'living room lights'}
+Assistant: I'll on living room lights for you.
+
+You: How's the weather tomorrow
+[DEBUG] Intent: weather_inquiry
+[DEBUG] Entities: {}
+Assistant: The weather in Boston is currently cloudy with a temperature of 65°F.
+
+You: Goodbye
+[DEBUG] Intent: farewell
+[DEBUG] Entities: {}
+Assistant: See you later!
+'''
+
+# ADDITIONAL EXPERIMENTAL FUNCTIONS
+
+# Example: Advanced entity extraction with spaCy
+'''
+import spacy
+
+class AdvancedEntityExtractor:
+    """A class for more advanced entity extraction using spaCy."""
+    
+    def __init__(self, model="en_core_web_sm"):
+        """Initialize with a spaCy model."""
+        self.nlp = spacy.load(model)
+    
+    def extract_entities(self, text, intent):
+        """
+        Extract entities from text using spaCy NER.
+        
+        Args:
+            text: The text to analyze
+            intent: The detected intent to guide extraction
+            
+        Returns:
+            Dictionary of extracted entities
+        """
+        doc = self.nlp(text)
+        entities = {}
+        
+        # Extract entities based on intent
+        if intent == "weather_inquiry":
+            # Look for locations
+            for ent in doc.ents:
+                if ent.label_ in ["GPE", "LOC"]:
+                    entities["location"] = ent.text
+                    break
+        
+        # Extract dates/times
+        for ent in doc.ents:
+            if ent.label_ == "DATE":
+                entities["date"] = ent.text
+            elif ent.label_ == "TIME":
+                entities["time"] = ent.text
+        
+        return entities
+'''
+
+# Example: Intent confidence scoring
+'''
+class ConfidenceIntentRecognizer:
+    """An intent recognizer that returns confidence scores."""
+    
+    def detect_intent_with_confidence(self, text):
+        """
+        Detect intent with confidence score.
+        
+        Args:
+            text: The text to analyze
+            
+        Returns:
+            Tuple of (intent, entities, confidence)
+        """
+        # Use both recognizers
+        regex_intent, regex_entities = self.regex_recognizer.detect_intent(text)
+        keyword_intent, keyword_entities = self.keyword_recognizer.detect_intent(text)
+        
+        # Calculate confidence (simplified)
+        if regex_intent != "unknown_intent":
+            confidence = 0.8  # High confidence for regex matches
+            intent = regex_intent
+            entities = regex_entities
+        elif keyword_intent != "unknown_intent":
+            confidence = 0.5  # Medium confidence for keyword matches
+            intent = keyword_intent
+            entities = keyword_entities
+        else:
+            confidence = 0.1  # Low confidence for unknown
+            intent = "unknown_intent"
+            entities = {}
+        
+        return intent, entities, confidence
+'''
