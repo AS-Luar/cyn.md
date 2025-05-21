@@ -1,7 +1,7 @@
 import toolbox as tb
 import soundfile as sf
 
-path = '/home/luar/AI/voice_assistant/Branch/recordings/'
+path = './recordings/'
 filename = input("\nfilename asshole \n")
 new_filename = input("\nnew filename asshole \n\n") 
 
