@@ -23,11 +23,12 @@ print('----------------------------------------------------\n')
 
 
 # Audio parameters
-FORMAT = pyaudio.paInt24
+FORMAT = pyaudio.paInt16
 CHANNELS = 1
-RATE = 44100
 CHUNK = 1024
 index =int(input("Pick index (asshole)\n\n"))
+device_info = p.get_device_info_by_index(index)
+RATE = RATE = int(device_info['defaultSampleRate'])
 RECORD_SECONDS = int(input('How long do you want to record? (seconds)\n\n'))
 
 
