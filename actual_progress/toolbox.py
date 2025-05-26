@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import pyaudio
 import requests as rq
 import json
+import time
+import keyboard as kb
 
 #-------------------------------------------------------------------
 

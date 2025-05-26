@@ -29,6 +29,7 @@ CHUNK = 1024
 index =int(input("Pick index (asshole)\n\n"))
 device_info = p.get_device_info_by_index(index)
 RATE = RATE = int(device_info['defaultSampleRate'])
+#RATE = 1600
 RECORD_SECONDS = int(input('How long do you want to record? (seconds)\n\n'))
 
 

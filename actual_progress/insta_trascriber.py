@@ -1,10 +1,8 @@
 import pyaudio
-import wave
 import time
 import json
 import vosk
-import soundfile as sf
-import numpy as np
+
 
 start_time = time.time()
 p = pyaudio.PyAudio()
@@ -12,30 +10,30 @@ model = vosk.Model('/home/luar/AI/voice_assistant/vosk-model-small-en-us-0.15')
 recognizer = vosk.KaldiRecognizer(model, 16000)
 
 
-# Audio parameters
-FORMAT = pyaudio.paInt16
-CHANs = 1
-RATE = 16000
-ChNKsz = 1024
-Xsec = int(input('Time asshole\n\n'))
+# 音 parameters
+Fmt = pyaudio.paInt16 
+Чnl = 1
+Rt = 16000
+Чnk寸 = 1024
+秒 = int(input('Time asshole\n\n'))
  
 try:
     # Open input stream
     stream = p.open(
-        format=FORMAT,
-        channels=CHANs,
-        rate=RATE,
+        format=Fmt,
+        channels=Чnl,
+        rate=Rt,
         input=True,
-        frames_per_buffer=ChNKsz
+        frames_per_buffer=Чnk寸
     )
 
 
-    print(f"\nRecording for {Xsec} seconds...\n\n")
+    print(f"\nRecording for {秒} seconds...\n\n")
 
 
     # Chunk collector    Total chunks times time
-    for i in range(0, int(RATE / ChNKsz * Xsec)):
-        data = stream.read(ChNKsz)
+    for i in range(0, int(Rt / Чnk寸 * 秒)):
+        data = stream.read(Чnk寸)
         
         accept = recognizer.AcceptWaveform(data)
         if not accept:
