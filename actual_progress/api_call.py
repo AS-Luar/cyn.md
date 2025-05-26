@@ -28,14 +28,23 @@ import json
 #     print(f"Weight: {pokemon_info[\"weight\"]}")
 #     print("\n\n")
 
-payload = {"model":"llama3",
-           "messages": [{"role":"user", "content":"message_input"}],
-           "stream": False}
+def apiCall(message_input): 
+    uInput = message_input
 
-url = "https://lovalhost:11434/api/chat"
-response = rq.post(url,json=payload)
+    payload = {"model":"llama3",
+            "messages": [{"role":"user", "content":uInput}],
+            "stream": False}
 
-response_json = json.loads(response.text)
+    ip = '192.168.1.13' # 172.29.160.1 # 192.168.1.13
 
-ai_reply  = response_json["message"]["content"]
-print(ai_reply)
+    url = f"http://{ip}:11434/api/chat"
+    headers = {"Content-Type": "application/json"}
+    response = rq.post(url, json=payload, headers=headers)
+
+    print("Status code:", response.status_code)
+
+
+    response_json = json.loads(response.text)
+
+    ai_reply  = response_json["message"]["content"]
+    return(ai_reply)

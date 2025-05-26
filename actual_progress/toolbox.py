@@ -3,6 +3,8 @@ import soundfile as sf
 import numpy as np
 import matplotlib.pyplot as plt
 import pyaudio
+import requests as rq
+import json
 
 #-------------------------------------------------------------------
 
@@ -80,3 +82,26 @@ def norm_音(numpaudio):
 
 #-------------------------------------------------------------------
 
+# API CALL
+def apiCall(message_input): 
+    uInput = message_input
+
+    payload = {"model":"llama3",
+            "messages": [{"role":"user", "content":uInput}],
+            "stream": False}
+
+    ip = '192.168.1.13' # 172.29.160.1 # 192.168.1.13
+
+    url = f"http://{ip}:11434/api/chat"
+    headers = {"Content-Type": "application/json"}
+    response = rq.post(url, json=payload, headers=headers)
+
+    print("Status code:", response.status_code)
+
+
+    response_json = json.loads(response.text)
+
+    ai_reply  = response_json["message"]["content"]
+    return(ai_reply)
+
+#-------------------------------------------------------------------
